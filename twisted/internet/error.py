@@ -13,17 +13,25 @@ from twisted.python import deprecate
 from twisted.python.versions import Version
 
 
+class BaseError(Exception):
+    message = "An error occurred"
 
-class BindError(Exception):
-    """An error occurred binding to an interface"""
+    def __init__(self, *args):
+        # Only use the message from this class or instance;
+        # else the class name is more descriptive than the
+        # generic ConnectError.message
+        self.message = (self.__dict__.get('message') or
+                        self.__class__.__dict__.get('message') or
+                        "%s (%s)" % (self.message, self.__class__.__name__))
 
-    def __str__(self):
-        s = self.__doc__
-        if self.args:
-            s = '%s: %s' % (s, ' '.join(self.args))
-        s = '%s.' % s
-        return s
+        if args:
+            self.message = '%s: %s' % (self.message, ' '.join(args))
 
+        super(BaseError, self).__init__(self.message)
+
+
+class BindError(BaseError):
+    message = "An error occurred binding to an interface"
 
 
 class CannotListenError(BindError):
@@ -37,139 +45,123 @@ class CannotListenError(BindError):
     @type socketError: L{socket.error}
     """
     def __init__(self, interface, port, socketError):
-        BindError.__init__(self, interface, port, socketError)
         self.interface = interface
         self.port = port
         self.socketError = socketError
 
-    def __str__(self):
         iface = self.interface or 'any'
-        return "Couldn't listen on %s:%s: %s." % (iface, self.port,
-                                                 self.socketError)
+        self.message = "Couldn't listen on %s:%s: %s." % (self.interface or 'any',
+                                                          self.port,
+                                                          self.socketError)
+        super(CannotListenError, self).__init__()
 
 
 
-class MulticastJoinError(Exception):
-    """
-    An attempt to join a multicast group failed.
-    """
+class MulticastJoinError(BaseError):
+    message = "An attempt to join a multicast group failed"
 
 
 
-class MessageLengthError(Exception):
-    """Message is too long to send"""
-
-    def __str__(self):
-        s = self.__doc__
-        if self.args:
-            s = '%s: %s' % (s, ' '.join(self.args))
-        s = '%s.' % s
-        return s
+class MessageLengthError(BaseError):
+    message = "Message is too long to send"
 
 
 
-class DNSLookupError(IOError):
-    """DNS lookup failed"""
-
-    def __str__(self):
-        s = self.__doc__
-        if self.args:
-            s = '%s: %s' % (s, ' '.join(self.args))
-        s = '%s.' % s
-        return s
+class DNSLookupError(BaseError, IOError):
+    message = "DNS lookup failed"
 
 
 
-class ConnectInProgressError(Exception):
-    """A connect operation was started and isn't done yet."""
+class ConnectInProgressError(BaseError):
+    message = "A connect operation was started and isn't done yet"
 
 
 # connection errors
 
-class ConnectError(Exception):
-    """An error occurred while connecting"""
+class ConnectError(BaseError):
+    message = "An error occurred while connecting"
 
     def __init__(self, osError=None, string=""):
         self.osError = osError
-        Exception.__init__(self, string)
+        self.string = string
 
-    def __str__(self):
-        s = self.__doc__ or self.__class__.__name__
+        s = (self.__dict__.get('message') or
+                self.__class__.__dict__.get('message') or
+                "%s (%s)" % (self.message, self.__class__.__name__))
+
         if self.osError:
             s = '%s: %s' % (s, self.osError)
-        if self.args[0]:
-            s = '%s: %s' % (s, self.args[0])
-        s = '%s.' % s
-        return s
+        if self.string:
+            s = '%s: %s' % (s, self.string)
+
+        self.message = s
+
+        super(ConnectError, self).__init__()
 
 
 
 class ConnectBindError(ConnectError):
-    """Couldn't bind"""
+    message = "Couldn't bind"
 
 
 
 class UnknownHostError(ConnectError):
-    """Hostname couldn't be looked up"""
+    message = "Hostname couldn't be looked up"
 
 
 
 class NoRouteError(ConnectError):
-    """No route to host"""
+    message = "No route to host"
 
 
 
 class ConnectionRefusedError(ConnectError):
-    """Connection was refused by other side"""
+    message = "Connection was refused by other side"
 
 
 
 class TCPTimedOutError(ConnectError):
-    """TCP connection timed out"""
+    message = "TCP connection timed out"
 
 
 
 class BadFileError(ConnectError):
-    """File used for UNIX socket is no good"""
+    message = "File used for UNIX socket is no good"
 
 
 
 class ServiceNameUnknownError(ConnectError):
-    """Service name given as port is unknown"""
+    message = "Service name given as port is unknown"
 
 
 
 class UserError(ConnectError):
-    """User aborted connection"""
+    message = "User aborted connection"
 
 
 
 class TimeoutError(UserError):
-    """User timeout caused connection failure"""
+    message = "User timeout caused connection failure"
 
 
 
 class SSLError(ConnectError):
-    """An SSL error occurred"""
+    message = "An SSL error occurred"
 
 
 
-class VerifyError(Exception):
-    """Could not verify something that was supposed to be signed.
-    """
+class VerifyError(BaseError):
+    message = "Could not verify something that was supposed to be signed"
 
 
 
 class PeerVerifyError(VerifyError):
-    """The peer rejected our verify error.
-    """
+    message = "The peer rejected our verify error"
 
 
 
-class CertificateError(Exception):
-    """
-    We did not find a certificate where we expected to find one.
-    """
+class CertificateError(BaseError):
+    message = "We did not find a certificate where we expected to find one"
 
 
 
@@ -209,22 +201,13 @@ def getConnectError(e):
 
 
 
-class ConnectionClosed(Exception):
-    """
-    Connection was closed, whether cleanly or non-cleanly.
-    """
+class ConnectionClosed(BaseError):
+    message = "Connection was closed, whether cleanly or non-cleanly"
 
 
 
 class ConnectionLost(ConnectionClosed):
-    """Connection to the other side was lost in a non-clean fashion"""
-
-    def __str__(self):
-        s = self.__doc__.strip().splitlines()[0]
-        if self.args:
-            s = '%s: %s' % (s, ' '.join(self.args))
-        s = '%s.' % s
-        return s
+    message = "Connection to the other side was lost in a non-clean fashion"
 
 
 
@@ -236,17 +219,12 @@ class ConnectionAborted(ConnectionLost):
     @since: 11.1
     """
 
+    message = "Connection was aborted locally"
+
 
 
 class ConnectionDone(ConnectionClosed):
-    """Connection was closed cleanly"""
-
-    def __str__(self):
-        s = self.__doc__
-        if self.args:
-            s = '%s: %s' % (s, ' '.join(self.args))
-        s = '%s.' % s
-        return s
+    message = "Connection was closed cleanly"
 
 
 
@@ -261,6 +239,9 @@ class FileDescriptorOverrun(ConnectionLost):
     connection is closed with this exception.
     """
 
+    message = ("A mis-use of IUNIXTransport.sendFileDescriptor caused the "
+               "connection to be closed")
+
 
 
 class ConnectionFdescWentAway(ConnectionLost):
@@ -268,27 +249,13 @@ class ConnectionFdescWentAway(ConnectionLost):
 
 
 
-class AlreadyCalled(ValueError):
-    """Tried to cancel an already-called event"""
-
-    def __str__(self):
-        s = self.__doc__
-        if self.args:
-            s = '%s: %s' % (s, ' '.join(self.args))
-        s = '%s.' % s
-        return s
+class AlreadyCalled(BaseError, ValueError):
+    message = "Tried to cancel an already-called event"
 
 
 
-class AlreadyCancelled(ValueError):
-    """Tried to cancel an already-cancelled event"""
-
-    def __str__(self):
-        s = self.__doc__
-        if self.args:
-            s = '%s: %s' % (s, ' '.join(self.args))
-        s = '%s.' % s
-        return s
+class AlreadyCancelled(BaseError, ValueError):
+   message = "Tried to cancel an already-cancelled event"
 
 
 
@@ -316,10 +283,10 @@ deprecate.deprecatedModuleAttribute(
 
 
 class ProcessDone(ConnectionDone):
-    """A process has ended without apparent errors"""
+    message = "A process has ended without apparent errors"
 
     def __init__(self, status):
-        Exception.__init__(self, "process finished with exit code 0")
+        super(ProcessDone, self).__init__()
         self.exitCode = 0
         self.signal = None
         self.status = status
@@ -356,69 +323,47 @@ class ProcessTerminated(ConnectionLost):
         s = "process ended"
         if exitCode is not None: s = s + " with exit code %s" % exitCode
         if signal is not None: s = s + " by signal %s" % signal
-        Exception.__init__(self, s)
+        self.message = s
+        super(ProcessTerminated, self).__init__()
 
 
 
-class ProcessExitedAlready(Exception):
-    """
-    The process has already exited and the operation requested can no longer
-    be performed.
-    """
+class ProcessExitedAlready(BaseError):
+    message = "Requested operation cannot be performed as the process has already exited"
 
 
 
-class NotConnectingError(RuntimeError):
-    """The Connector was not connecting when it was asked to stop connecting"""
-
-    def __str__(self):
-        s = self.__doc__
-        if self.args:
-            s = '%s: %s' % (s, ' '.join(self.args))
-        s = '%s.' % s
-        return s
+class NotConnectingError(BaseError, RuntimeError):
+    message = "The Connector was not connecting when it was asked to stop connecting"
 
 
 
-class NotListeningError(RuntimeError):
-    """The Port was not listening when it was asked to stop listening"""
-
-    def __str__(self):
-        s = self.__doc__
-        if self.args:
-            s = '%s: %s' % (s, ' '.join(self.args))
-        s = '%s.' % s
-        return s
+class NotListeningError(BaseError, RuntimeError):
+    message = "The Port was not listening when it was asked to stop listening"
 
 
 
-class ReactorNotRunning(RuntimeError):
-    """
-    Error raised when trying to stop a reactor which is not running.
-    """
-
-
-class ReactorNotRestartable(RuntimeError):
-    """
-    Error raised when trying to run a reactor which was stopped.
-    """
+class ReactorNotRunning(BaseError, RuntimeError):
+    message = "Error raised when trying to stop a reactor which is not running"
 
 
 
-class ReactorAlreadyRunning(RuntimeError):
-    """
-    Error raised when trying to start the reactor multiple times.
-    """
-
-
-class ReactorAlreadyInstalledError(AssertionError):
-    """
-    Could not install reactor because one is already installed.
-    """
+class ReactorNotRestartable(BaseError, RuntimeError):
+    message = "Error raised when trying to run a reactor which was stopped"
 
 
 
-class ConnectingCancelledError(Exception):
+class ReactorAlreadyRunning(BaseError, RuntimeError):
+    message = "Error raised when trying to start the reactor multiple times"
+
+
+
+class ReactorAlreadyInstalledError(BaseError, AssertionError):
+    message = "Could not install reactor because one is already installed"
+
+
+
+class ConnectingCancelledError(BaseError):
     """
     An C{Exception} that will be raised when an L{IStreamClientEndpoint} is
     cancelled before it connects.
@@ -432,12 +377,12 @@ class ConnectingCancelledError(Exception):
         @param address: The L{IAddress} that is the destination of the
             L{IStreamClientEndpoint} that was cancelled.
         """
-        Exception.__init__(self, address)
-        self.address = address
+        self.message = address
+        super(ConnectingCancelledError, self).__init__()
 
 
 
-class UnsupportedAddressFamily(Exception):
+class UnsupportedAddressFamily(BaseError):
     """
     An attempt was made to use a socket with an address family (eg I{AF_INET},
     I{AF_INET6}, etc) which is not supported by the reactor.
@@ -445,14 +390,14 @@ class UnsupportedAddressFamily(Exception):
 
 
 
-class UnsupportedSocketType(Exception):
+class UnsupportedSocketType(BaseError):
     """
     An attempt was made to use a socket of a type (eg I{SOCK_STREAM},
     I{SOCK_DGRAM}, etc) which is not supported by the reactor.
     """
 
 
-class AlreadyListened(Exception):
+class AlreadyListened(BaseError):
     """
     An attempt was made to listen on a file descriptor which can only be
     listened on once.
